@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>QR Code Reader</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; }
+        #video { width: 90vw; height: auto; margin-top: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        #out { margin: 20px 0; font-size: 1.3em; color: #008c34; }
+        button { padding: 15px 30px; font-size: 1em; border-radius: 5px; background: #008c34; color: #fff; border: none; cursor: pointer; }
+        button:hover { background: #00b047; }
+    </style>
+</head>
+<body>
+    <h1>QR Code Reader</h1>
+    <button id="start-btn">Start Camera</button>
+    <div>
+        <video id="video" playsinline></video>
+    </div>
+    <div id="out"></div>
+
+    <!-- jsQR library -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+    <script>
+    const video = document.getElementById('video');
+    const startBtn = document.getElementById('start-btn');
+    const out = document.getElementById('out');
+    let stream;
+    let scanning = false;
+
+    startBtn.onclick = async () => {
+        startBtn.disabled = true;
+        out.textContent = "";
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            video.srcObject = stream;
+            video.setAttribute('playsinline', true); // for iOS
+            video.play();
+            scanning = true;
+            requestAnimationFrame(tick);
+        } catch (e) {
+            out.textContent = 'Camera error: ' + e;
+        }
+    };
+
+    function tick() {
+        if (!scanning) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, canvas.width, canvas.height);
+            if (code) {
+                scanning = false;
+                out.textContent = 'Scanned QR: ' + code.data;
+                if (stream) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                }
+                return;
+            }
+        }
+        requestAnimationFrame(tick);
+    }
+    </script>
+</body>
+</html>
