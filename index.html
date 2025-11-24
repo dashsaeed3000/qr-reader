@@ -2,151 +2,752 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>Fast QR Code Reader</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Reader - Screen Capture</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; }
-        #video { width: 90vw; height: auto; margin-top: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        #out { margin: 20px 0; font-size: 1.3em; color: #008c34; min-height: 30px; }
-        .scan-history { margin: 20px auto; max-width: 90vw; text-align: left; }
-        .scan-item { padding: 10px; margin: 5px 0; background: #f0f0f0; border-radius: 5px; word-wrap: break-word; }
-        button { padding: 15px 30px; font-size: 1em; border-radius: 5px; background: #008c34; color: #fff; border: none; cursor: pointer; margin: 5px; }
-        button:hover { background: #00b047; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        #stop-btn { background: #c34; }
-        #stop-btn:hover { background: #e45; }
-        .settings { margin: 10px; font-size: 0.9em; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        header h1 { font-size: 2em; margin-bottom: 10px; }
+        header p { opacity: 0.9; }
+        
+        .video-section {
+            padding: 20px;
+            text-align: center;
+        }
+        #video {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: #000;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover { background: #5568d3; }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover { background: #5a6268; }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-success:hover { background: #218838; }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .status-section {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+        .status-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .status-card h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .status-text {
+            font-size: 18px;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        .status-text.info { background: #d1ecf1; color: #0c5460; }
+        .status-text.success { background: #d4edda; color: #155724; }
+        .status-text.error { background: #f8d7da; color: #721c24; }
+        .status-text.warning { background: #fff3cd; color: #856404; }
+        
+        .progress-info {
+            margin-top: 15px;
+        }
+        .progress-info > div {
+            margin: 8px 0;
+            font-size: 16px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .chunks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+            gap: 5px;
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        .chunk-badge {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            background: #28a745;
+            color: white;
+        }
+        .chunk-badge.missing {
+            background: #dc3545;
+        }
+        
+        .result-section {
+            padding: 20px;
+            display: none;
+        }
+        .result-section.active {
+            display: block;
+        }
+        #fileInfo {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        
+        .scan-history {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        .scan-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #667eea;
+            font-size: 14px;
+        }
+        .scan-item.success {
+            border-left-color: #28a745;
+        }
+        .scan-item.error {
+            border-left-color: #dc3545;
+        }
     </style>
 </head>
 <body>
-    <h1>Fast QR Code Reader</h1>
-    <button id="start-btn">Start Camera</button>
-    <button id="stop-btn" style="display:none;">Stop Camera</button>
-    <div class="settings">
-        <label>Scan Speed: 
-            <select id="speed-select">
-                <option value="60">Normal (60 FPS)</option>
-                <option value="90" selected>Fast (90 FPS)</option>
-                <option value="120">Very Fast (120 FPS)</option>
-            </select>
-        </label>
+    <div class="container">
+        <header>
+            <h1>📱 QR Code Reader</h1>
+            <p>Scan QR codes from screen capture or camera</p>
+        </header>
+        
+        <div class="video-section">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas" style="display: none;"></canvas>
+            
+            <div class="controls">
+                <button id="startBtn" class="btn-primary">Start Camera</button>
+                <button id="stopBtn" class="btn-secondary" disabled>Stop Camera</button>
+                <button id="downloadBtn" class="btn-success" disabled style="display: none;">Download File</button>
+            </div>
+        </div>
+        
+        <div class="status-section">
+            <div class="status-card">
+                <h3>Scan Status</h3>
+                <div id="statusText" class="status-text info">Ready to scan</div>
+                <div class="progress-info">
+                    <div>Chunks scanned: <strong id="chunksScanned">0</strong></div>
+                    <div>Total chunks: <strong id="totalChunks">-</strong></div>
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill" style="width: 0%">0%</div>
+                    </div>
+                </div>
+                <div class="chunks-grid" id="chunksList"></div>
+            </div>
+            
+            <div class="status-card">
+                <h3>Scan History</h3>
+                <div class="scan-history" id="history"></div>
+            </div>
+        </div>
+        
+        <div class="result-section" id="resultSection">
+            <div class="status-card">
+                <h3>File Reconstructed</h3>
+                <div id="fileInfo"></div>
+            </div>
+        </div>
     </div>
-    <div>
-        <video id="video" playsinline></video>
-    </div>
-    <div id="out">Ready to scan...</div>
-    <div class="scan-history" id="history"></div>
     
+    <!-- Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pako/dist/pako.min.js"></script>
+    
     <script>
-    const video = document.getElementById('video');
-    const startBtn = document.getElementById('start-btn');
-    const stopBtn = document.getElementById('stop-btn');
-    const speedSelect = document.getElementById('speed-select');
-    const out = document.getElementById('out');
-    const history = document.getElementById('history');
-    let stream;
-    let scanning = false;
-    let lastScannedCode = '';
-    let lastScannedTime = 0;
-    const SCAN_COOLDOWN = 1000; // Reduced to 1 second
-    let canvas, ctx;
-    let targetFPS = 90;
-    let lastFrameTime = 0;
-
-    startBtn.onclick = async () => {
-        startBtn.style.display = 'none';
-        stopBtn.style.display = 'inline-block';
-        out.textContent = "Starting camera...";
-        targetFPS = parseInt(speedSelect.value);
-        
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    facingMode: 'environment',
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    frameRate: { ideal: 60 }
-                } 
-            });
-            video.srcObject = stream;
-            video.setAttribute('playsinline', true);
-            video.play();
-            scanning = true;
+    class QRReader {
+        constructor() {
+            this.video = document.getElementById('video');
+            this.canvas = document.getElementById('canvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.stream = null;
+            this.scanning = false;
+            this.chunks = new Map(); // chunk_index -> chunk_data
+            this.totalChunks = null;
+            this.lastScanTime = 0;
+            this.scanInterval = 50; // Scan every 50ms for better responsiveness
+            this.lastScannedHash = null;
+            this.scanCooldown = 500; // 500ms cooldown for same chunk
+            this.detectionAttempts = 0;
+            this.successfulScans = 0;
             
-            // Pre-create canvas for better performance
-            canvas = document.createElement('canvas');
+            this.setupEventListeners();
+        }
+        
+        setupEventListeners() {
+            document.getElementById('startBtn').addEventListener('click', () => this.start());
+            document.getElementById('stopBtn').addEventListener('click', () => this.stop());
+            document.getElementById('downloadBtn').addEventListener('click', () => this.downloadFile());
+        }
+        
+        async start() {
+            try {
+                // Try to get screen capture first, fallback to camera
+                let streamOptions = {
+                    video: {
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
+                };
+                
+                // Try screen capture (for desktop)
+                try {
+                    this.stream = await navigator.mediaDevices.getDisplayMedia({
+                        video: { 
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 }
+                        }
+                    });
+                } catch (e) {
+                    // Fallback to camera
+                    this.stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'environment',
+                            width: { ideal: 1280 },
+                            height: { ideal: 1280 }
+                        }
+                    });
+                }
+                
+                this.video.srcObject = this.stream;
+                this.video.play();
+                
+                this.scanning = true;
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+                this.updateStatus('Camera started. Scanning for QR codes...', 'info');
+                this.scan();
+            } catch (error) {
+                this.updateStatus(`Error accessing camera: ${error.message}`, 'error');
+                console.error('Camera error:', error);
+            }
+        }
+        
+        stop() {
+            this.scanning = false;
             
-            out.textContent = `Camera active (${targetFPS} FPS) - Point at a QR code`;
-            requestAnimationFrame(tick);
-        } catch (e) {
-            out.textContent = 'Camera error: ' + e;
-            startBtn.style.display = 'inline-block';
-            stopBtn.style.display = 'none';
-        }
-    };
-
-    stopBtn.onclick = () => {
-        stopCamera();
-    };
-
-    function stopCamera() {
-        scanning = false;
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-        }
-        video.srcObject = null;
-        startBtn.style.display = 'inline-block';
-        stopBtn.style.display = 'none';
-        out.textContent = "Camera stopped";
-    }
-
-    function tick(timestamp) {
-        if (!scanning) return;
-        
-        // Control frame rate
-        const frameInterval = 1000 / targetFPS;
-        if (timestamp - lastFrameTime < frameInterval) {
-            requestAnimationFrame(tick);
-            return;
-        }
-        lastFrameTime = timestamp;
-        
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            // Resize canvas only if dimensions changed
-            if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                ctx = canvas.getContext('2d', { willReadFrequently: true });
+            if (this.stream) {
+                this.stream.getTracks().forEach(track => track.stop());
+                this.stream = null;
             }
             
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, canvas.width, canvas.height, {
-                inversionAttempts: "dontInvert" // Skip inversion attempts for speed
-            });
+            this.video.srcObject = null;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            this.updateStatus('Camera stopped', 'info');
+        }
+        
+        scan() {
+            if (!this.scanning) return;
             
-            if (code) {
-                const now = Date.now();
-                if (code.data !== lastScannedCode || (now - lastScannedTime) > SCAN_COOLDOWN) {
-                    lastScannedCode = code.data;
-                    lastScannedTime = now;
-                    
-                    out.textContent = 'Scanned: ' + code.data;
-                    
-                    const item = document.createElement('div');
-                    item.className = 'scan-item';
-                    item.textContent = new Date().toLocaleTimeString() + ' - ' + code.data;
-                    history.insertBefore(item, history.firstChild);
-                    
-                    out.style.color = '#00b047';
-                    setTimeout(() => { out.style.color = '#008c34'; }, 300);
+            const now = Date.now();
+            if (now - this.lastScanTime < this.scanInterval) {
+                requestAnimationFrame(() => this.scan());
+                return;
+            }
+            this.lastScanTime = now;
+            this.detectionAttempts++;
+            
+            if (this.video.readyState === this.video.HAVE_ENOUGH_DATA) {
+                this.canvas.width = this.video.videoWidth;
+                this.canvas.height = this.video.videoHeight;
+                this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+                
+                const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+                this.detectAndDecodeQR(imageData);
+            }
+            
+            requestAnimationFrame(() => this.scan());
+        }
+        
+        detectAndDecodeQR(imageData) {
+            // Strategy 1: Try to detect green border and extract QR region
+            const qrRegion = this.detectGreenBorder(imageData);
+            
+            if (qrRegion) {
+                // Extract and enhance the QR code region
+                const qrImageData = this.ctx.getImageData(
+                    qrRegion.x, qrRegion.y, qrRegion.width, qrRegion.height
+                );
+                
+                // Enhance image for better detection
+                const enhanced = this.enhanceImage(qrImageData);
+                
+                // Try to decode QR code
+                let code = jsQR(enhanced.data, enhanced.width, enhanced.height, {
+                    inversionAttempts: 'dontInvert'
+                });
+                
+                if (!code) {
+                    // Try with inversion
+                    code = jsQR(enhanced.data, enhanced.width, enhanced.height, {
+                        inversionAttempts: 'attemptBoth'
+                    });
+                }
+                
+                if (code) {
+                    this.processQRCode(code);
+                    return;
                 }
             }
+            
+            // Strategy 2: Try full frame with enhancement
+            const enhanced = this.enhanceImage(imageData);
+            let code = jsQR(enhanced.data, enhanced.width, enhanced.height, {
+                inversionAttempts: 'dontInvert'
+            });
+            
+            if (!code) {
+                // Try with inversion
+                code = jsQR(enhanced.data, enhanced.width, enhanced.height, {
+                    inversionAttempts: 'attemptBoth'
+                });
+            }
+            
+            if (code) {
+                this.processQRCode(code);
+            }
         }
         
-        requestAnimationFrame(tick);
+        enhanceImage(imageData) {
+            // Create a copy for enhancement
+            const data = new Uint8ClampedArray(imageData.data);
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            // Apply contrast enhancement
+            const contrast = 1.2;
+            const brightness = 10;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                // Convert to grayscale for QR detection
+                const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+                
+                // Apply contrast and brightness
+                let enhanced = (gray - 128) * contrast + 128 + brightness;
+                enhanced = Math.max(0, Math.min(255, enhanced));
+                
+                // Threshold to black/white
+                const threshold = 128;
+                const value = enhanced > threshold ? 255 : 0;
+                
+                data[i] = value;     // R
+                data[i + 1] = value; // G
+                data[i + 2] = value; // B
+                // Alpha stays the same
+            }
+            
+            return new ImageData(data, width, height);
+        }
+        
+        detectGreenBorder(imageData) {
+            const width = imageData.width;
+            const height = imageData.height;
+            const data = imageData.data;
+            const borderThreshold = 30; // pixels from edge to check (increased for screen capture)
+            const greenThreshold = 80; // minimum green value (lowered for screen capture)
+            const minBorderRatio = 0.2; // minimum ratio of green pixels (lowered for screen capture)
+            
+            // Check all borders
+            let topGreen = 0, topTotal = 0;
+            let bottomGreen = 0, bottomTotal = 0;
+            let leftGreen = 0, leftTotal = 0;
+            let rightGreen = 0, rightTotal = 0;
+            
+            for (let y = 0; y < Math.min(borderThreshold, height); y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = (y * width + x) * 4;
+                    const r = data[idx];
+                    const g = data[idx + 1];
+                    const b = data[idx + 2];
+                    topTotal++;
+                    if (g > greenThreshold && g > r * 1.3 && g > b * 1.3) {
+                        topGreen++;
+                    }
+                }
+            }
+            
+            for (let y = Math.max(0, height - borderThreshold); y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = (y * width + x) * 4;
+                    const r = data[idx];
+                    const g = data[idx + 1];
+                    const b = data[idx + 2];
+                    bottomTotal++;
+                    if (g > greenThreshold && g > r * 1.3 && g > b * 1.3) {
+                        bottomGreen++;
+                    }
+                }
+            }
+            
+            for (let x = 0; x < Math.min(borderThreshold, width); x++) {
+                for (let y = 0; y < height; y++) {
+                    const idx = (y * width + x) * 4;
+                    const r = data[idx];
+                    const g = data[idx + 1];
+                    const b = data[idx + 2];
+                    leftTotal++;
+                    if (g > greenThreshold && g > r * 1.3 && g > b * 1.3) {
+                        leftGreen++;
+                    }
+                }
+            }
+            
+            for (let x = Math.max(0, width - borderThreshold); x < width; x++) {
+                for (let y = 0; y < height; y++) {
+                    const idx = (y * width + x) * 4;
+                    const r = data[idx];
+                    const g = data[idx + 1];
+                    const b = data[idx + 2];
+                    rightTotal++;
+                    if (g > greenThreshold && g > r * 1.3 && g > b * 1.3) {
+                        rightGreen++;
+                    }
+                }
+            }
+            
+            const topRatio = topGreen / topTotal;
+            const bottomRatio = bottomGreen / bottomTotal;
+            const leftRatio = leftGreen / leftTotal;
+            const rightRatio = rightGreen / rightTotal;
+            
+            // If we have green borders on all sides, extract the inner region
+            if (topRatio > minBorderRatio && bottomRatio > minBorderRatio && 
+                leftRatio > minBorderRatio && rightRatio > minBorderRatio) {
+                
+                // Estimate border width
+                const avgRatio = (topRatio + bottomRatio + leftRatio + rightRatio) / 4;
+                const borderWidth = Math.max(10, Math.min(
+                    Math.floor(avgRatio * borderThreshold * 2),
+                    40
+                ));
+                
+                return {
+                    x: borderWidth,
+                    y: borderWidth,
+                    width: Math.max(100, width - (borderWidth * 2)),
+                    height: Math.max(100, height - (borderWidth * 2))
+                };
+            }
+            
+            return null;
+        }
+        
+        async processQRCode(qrCode) {
+            try {
+                // Get binary data from QR code
+                let bytes;
+                if (qrCode.binaryData) {
+                    bytes = new Uint8Array(qrCode.binaryData);
+                } else if (qrCode.data) {
+                    if (typeof qrCode.data === 'string') {
+                        // Try to parse as binary string
+                        bytes = new Uint8Array(qrCode.data.length);
+                        for (let i = 0; i < qrCode.data.length; i++) {
+                            bytes[i] = qrCode.data.charCodeAt(i);
+                        }
+                    } else if (qrCode.data instanceof Uint8Array) {
+                        bytes = qrCode.data;
+                    } else if (Array.isArray(qrCode.data)) {
+                        bytes = new Uint8Array(qrCode.data);
+                    } else {
+                        console.warn('Unknown QR code data format:', typeof qrCode.data);
+                        return;
+                    }
+                } else {
+                    console.warn('No data found in QR code');
+                    return;
+                }
+                
+                if (bytes.length < 8) {
+                    return; // Too small to be a valid chunk
+                }
+                
+                // Parse header: index (4 bytes big-endian) + total_chunks (4 bytes big-endian)
+                const index = this.readUint32BE(bytes, 0);
+                const totalChunks = this.readUint32BE(bytes, 4);
+                const chunkData = bytes.slice(8);
+                
+                // Create hash for duplicate detection
+                const chunkHash = this.hashChunk(bytes);
+                const now = Date.now();
+                if (this.lastScannedHash === chunkHash && (now - this.lastScanTime) < this.scanCooldown) {
+                    return; // Skip duplicate
+                }
+                this.lastScannedHash = chunkHash;
+                
+                // Validate chunk index
+                if (index >= totalChunks || totalChunks === 0) {
+                    this.addHistory(`Invalid chunk: index ${index}/${totalChunks}`, 'error');
+                    return;
+                }
+                
+                // Store chunk
+                if (!this.chunks.has(index)) {
+                    const chunkCopy = new Uint8Array(chunkData);
+                    this.chunks.set(index, chunkCopy);
+                    
+                    if (this.totalChunks === null) {
+                        this.totalChunks = totalChunks;
+                        this.addHistory(`Detected ${totalChunks} total chunks`, 'success');
+                    }
+                    
+                    this.successfulScans++;
+                    this.addHistory(`Scanned chunk ${index + 1}/${totalChunks}`, 'success');
+                    this.updateUI();
+                    
+                    // Check if we have all chunks
+                    if (this.chunks.size === this.totalChunks) {
+                        this.reconstructFile();
+                    }
+                } else {
+                    // Duplicate chunk (already scanned)
+                    this.addHistory(`Duplicate chunk ${index + 1}`, 'info');
+                }
+            } catch (error) {
+                console.error('Error processing QR code:', error);
+                this.addHistory(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        readUint32BE(bytes, offset) {
+            return (bytes[offset] << 24) |
+                   (bytes[offset + 1] << 16) |
+                   (bytes[offset + 2] << 8) |
+                   bytes[offset + 3];
+        }
+        
+        hashChunk(data) {
+            // Simple hash for duplicate detection
+            let hash = 0;
+            for (let i = 0; i < Math.min(data.length, 100); i++) {
+                hash = ((hash << 5) - hash) + data[i];
+                hash = hash & hash; // Convert to 32-bit integer
+            }
+            return hash;
+        }
+        
+        updateUI() {
+            const scanned = this.chunks.size;
+            const total = this.totalChunks || 0;
+            
+            document.getElementById('chunksScanned').textContent = scanned;
+            document.getElementById('totalChunks').textContent = total > 0 ? total : '-';
+            
+            const progress = total > 0 ? (scanned / total) * 100 : 0;
+            const progressFill = document.getElementById('progressFill');
+            progressFill.style.width = `${progress}%`;
+            progressFill.textContent = `${Math.round(progress)}%`;
+            
+            // Update chunks grid
+            const chunksList = document.getElementById('chunksList');
+            chunksList.innerHTML = '';
+            
+            if (total > 0) {
+                for (let i = 0; i < total; i++) {
+                    const badge = document.createElement('div');
+                    badge.className = 'chunk-badge';
+                    badge.textContent = i;
+                    if (!this.chunks.has(i)) {
+                        badge.classList.add('missing');
+                    }
+                    chunksList.appendChild(badge);
+                }
+            }
+            
+            if (scanned === total && total > 0) {
+                this.updateStatus(`All ${total} chunks scanned! Reconstructing file...`, 'success');
+            } else if (total > 0) {
+                this.updateStatus(`Scanning... ${scanned}/${total} chunks (${this.successfulScans} scans)`, 'info');
+            } else {
+                this.updateStatus(`Scanning... (${this.detectionAttempts} attempts, ${this.successfulScans} successful)`, 'info');
+            }
+        }
+        
+        async reconstructFile() {
+            try {
+                this.updateStatus('Reconstructing file from chunks...', 'info');
+                
+                // Sort chunks by index
+                const sortedChunks = [];
+                for (let i = 0; i < this.totalChunks; i++) {
+                    if (!this.chunks.has(i)) {
+                        throw new Error(`Missing chunk ${i}`);
+                    }
+                    sortedChunks.push(this.chunks.get(i));
+                }
+                
+                // Combine chunks
+                const totalLength = sortedChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+                const combinedData = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of sortedChunks) {
+                    combinedData.set(chunk, offset);
+                    offset += chunk.length;
+                }
+                
+                // Decompress using pako (gzip)
+                this.updateStatus('Decompressing data...', 'info');
+                const decompressed = pako.inflate(combinedData);
+                
+                // Create blob and download
+                const blob = new Blob([decompressed], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                
+                // Store for download
+                this.reconstructedFile = {
+                    blob: blob,
+                    url: url,
+                    size: decompressed.length
+                };
+                
+                // Show result
+                document.getElementById('fileInfo').innerHTML = `
+                    <strong>File size:</strong> ${(decompressed.length / 1024).toFixed(2)} KB<br>
+                    <strong>Chunks:</strong> ${this.totalChunks}<br>
+                    <strong>Ready to download</strong>
+                `;
+                document.getElementById('resultSection').classList.add('active');
+                document.getElementById('downloadBtn').style.display = 'inline-block';
+                document.getElementById('downloadBtn').disabled = false;
+                
+                this.updateStatus(`File reconstructed successfully! (${(decompressed.length / 1024).toFixed(2)} KB)`, 'success');
+                
+                // Stop scanning
+                this.stop();
+                
+            } catch (error) {
+                this.updateStatus(`Error reconstructing file: ${error.message}`, 'error');
+                console.error('Reconstruction error:', error);
+                this.addHistory(`Reconstruction error: ${error.message}`, 'error');
+            }
+        }
+        
+        downloadFile() {
+            if (!this.reconstructedFile) {
+                return;
+            }
+            
+            const a = document.createElement('a');
+            a.href = this.reconstructedFile.url;
+            a.download = `reconstructed_file_${new Date().getTime()}.bin`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        
+        addHistory(message, type = 'info') {
+            const history = document.getElementById('history');
+            const item = document.createElement('div');
+            item.className = `scan-item ${type}`;
+            item.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+            history.insertBefore(item, history.firstChild);
+            
+            // Keep only last 50 items
+            while (history.children.length > 50) {
+                history.removeChild(history.lastChild);
+            }
+        }
+        
+        updateStatus(message, type = 'info') {
+            const statusText = document.getElementById('statusText');
+            statusText.textContent = message;
+            statusText.className = `status-text ${type}`;
+        }
     }
+    
+    // Initialize reader when page loads
+    let reader;
+    window.addEventListener('DOMContentLoaded', () => {
+        reader = new QRReader();
+    });
     </script>
 </body>
 </html>
+
