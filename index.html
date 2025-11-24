@@ -7,45 +7,79 @@
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; }
         #video { width: 90vw; height: auto; margin-top: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        #out { margin: 20px 0; font-size: 1.3em; color: #008c34; }
-        button { padding: 15px 30px; font-size: 1em; border-radius: 5px; background: #008c34; color: #fff; border: none; cursor: pointer; }
+        #out { margin: 20px 0; font-size: 1.3em; color: #008c34; min-height: 30px; }
+        .scan-history { margin: 20px auto; max-width: 90vw; text-align: left; }
+        .scan-item { padding: 10px; margin: 5px 0; background: #f0f0f0; border-radius: 5px; word-wrap: break-word; }
+        button { padding: 15px 30px; font-size: 1em; border-radius: 5px; background: #008c34; color: #fff; border: none; cursor: pointer; margin: 5px; }
         button:hover { background: #00b047; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #stop-btn { background: #c34; }
+        #stop-btn:hover { background: #e45; }
     </style>
 </head>
 <body>
-    <h1>QR Code Reader</h1>
+    <h1>Continuous QR Code Reader</h1>
     <button id="start-btn">Start Camera</button>
+    <button id="stop-btn" style="display:none;">Stop Camera</button>
     <div>
         <video id="video" playsinline></video>
     </div>
-    <div id="out"></div>
-
+    <div id="out">Ready to scan...</div>
+    <div class="scan-history" id="history"></div>
+    
     <!-- jsQR library -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
     <script>
     const video = document.getElementById('video');
     const startBtn = document.getElementById('start-btn');
+    const stopBtn = document.getElementById('stop-btn');
     const out = document.getElementById('out');
+    const history = document.getElementById('history');
     let stream;
     let scanning = false;
+    let lastScannedCode = '';
+    let lastScannedTime = 0;
+    const SCAN_COOLDOWN = 2000; // 2 seconds cooldown between same code scans
 
     startBtn.onclick = async () => {
-        startBtn.disabled = true;
-        out.textContent = "";
+        startBtn.style.display = 'none';
+        stopBtn.style.display = 'inline-block';
+        out.textContent = "Starting camera...";
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment' } 
+            });
             video.srcObject = stream;
-            video.setAttribute('playsinline', true); // for iOS
+            video.setAttribute('playsinline', true);
             video.play();
             scanning = true;
+            out.textContent = "Camera active - Point at a QR code";
             requestAnimationFrame(tick);
         } catch (e) {
             out.textContent = 'Camera error: ' + e;
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
         }
     };
 
+    stopBtn.onclick = () => {
+        stopCamera();
+    };
+
+    function stopCamera() {
+        scanning = false;
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        video.srcObject = null;
+        startBtn.style.display = 'inline-block';
+        stopBtn.style.display = 'none';
+        out.textContent = "Camera stopped";
+    }
+
     function tick() {
         if (!scanning) return;
+        
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
@@ -54,18 +88,36 @@
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const code = jsQR(imageData.data, canvas.width, canvas.height);
+            
             if (code) {
-                scanning = false;
-                out.textContent = 'Scanned QR: ' + code.data;
-                if (stream) {
-                    video.srcObject.getTracks().forEach(track => track.stop());
+                const now = Date.now();
+                // Only process if it's a different code or enough time has passed
+                if (code.data !== lastScannedCode || (now - lastScannedTime) > SCAN_COOLDOWN) {
+                    lastScannedCode = code.data;
+                    lastScannedTime = now;
+                    
+                    out.textContent = 'Scanned: ' + code.data;
+                    
+                    // Add to history
+                    const item = document.createElement('div');
+                    item.className = 'scan-item';
+                    item.textContent = new Date().toLocaleTimeString() + ' - ' + code.data;
+                    history.insertBefore(item, history.firstChild);
+                    
+                    // Optional: Add visual/audio feedback
+                    out.style.color = '#00b047';
+                    setTimeout(() => { out.style.color = '#008c34'; }, 500);
                 }
-                return;
+            } else {
+                // No code detected, keep scanning message
+                if (out.textContent.indexOf('Camera active') === -1 && out.textContent.indexOf('Scanned') === -1) {
+                    out.textContent = "Camera active - Point at a QR code";
+                }
             }
         }
+        
         requestAnimationFrame(tick);
     }
     </script>
 </body>
 </html>
-
