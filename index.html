@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>QR Code Reader</title>
+    <title>Fast QR Code Reader</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; }
         #video { width: 90vw; height: auto; margin-top: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
@@ -15,45 +15,69 @@
         button:disabled { background: #ccc; cursor: not-allowed; }
         #stop-btn { background: #c34; }
         #stop-btn:hover { background: #e45; }
+        .settings { margin: 10px; font-size: 0.9em; }
     </style>
 </head>
 <body>
-    <h1>Continuous QR Code Reader</h1>
+    <h1>Fast QR Code Reader</h1>
     <button id="start-btn">Start Camera</button>
     <button id="stop-btn" style="display:none;">Stop Camera</button>
+    <div class="settings">
+        <label>Scan Speed: 
+            <select id="speed-select">
+                <option value="60">Normal (60 FPS)</option>
+                <option value="90" selected>Fast (90 FPS)</option>
+                <option value="120">Very Fast (120 FPS)</option>
+            </select>
+        </label>
+    </div>
     <div>
         <video id="video" playsinline></video>
     </div>
     <div id="out">Ready to scan...</div>
     <div class="scan-history" id="history"></div>
     
-    <!-- jsQR library -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
     <script>
     const video = document.getElementById('video');
     const startBtn = document.getElementById('start-btn');
     const stopBtn = document.getElementById('stop-btn');
+    const speedSelect = document.getElementById('speed-select');
     const out = document.getElementById('out');
     const history = document.getElementById('history');
     let stream;
     let scanning = false;
     let lastScannedCode = '';
     let lastScannedTime = 0;
-    const SCAN_COOLDOWN = 2000; // 2 seconds cooldown between same code scans
+    const SCAN_COOLDOWN = 1000; // Reduced to 1 second
+    let canvas, ctx;
+    let targetFPS = 90;
+    let lastFrameTime = 0;
 
     startBtn.onclick = async () => {
         startBtn.style.display = 'none';
         stopBtn.style.display = 'inline-block';
         out.textContent = "Starting camera...";
+        targetFPS = parseInt(speedSelect.value);
+        
         try {
             stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'environment' } 
+                video: { 
+                    facingMode: 'environment',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 60 }
+                } 
             });
             video.srcObject = stream;
             video.setAttribute('playsinline', true);
             video.play();
             scanning = true;
-            out.textContent = "Camera active - Point at a QR code";
+            
+            // Pre-create canvas for better performance
+            canvas = document.createElement('canvas');
+            
+            out.textContent = `Camera active (${targetFPS} FPS) - Point at a QR code`;
             requestAnimationFrame(tick);
         } catch (e) {
             out.textContent = 'Camera error: ' + e;
@@ -77,41 +101,46 @@
         out.textContent = "Camera stopped";
     }
 
-    function tick() {
+    function tick(timestamp) {
         if (!scanning) return;
         
+        // Control frame rate
+        const frameInterval = 1000 / targetFPS;
+        if (timestamp - lastFrameTime < frameInterval) {
+            requestAnimationFrame(tick);
+            return;
+        }
+        lastFrameTime = timestamp;
+        
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
+            // Resize canvas only if dimensions changed
+            if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx = canvas.getContext('2d', { willReadFrequently: true });
+            }
+            
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, canvas.width, canvas.height, {
+                inversionAttempts: "dontInvert" // Skip inversion attempts for speed
+            });
             
             if (code) {
                 const now = Date.now();
-                // Only process if it's a different code or enough time has passed
                 if (code.data !== lastScannedCode || (now - lastScannedTime) > SCAN_COOLDOWN) {
                     lastScannedCode = code.data;
                     lastScannedTime = now;
                     
                     out.textContent = 'Scanned: ' + code.data;
                     
-                    // Add to history
                     const item = document.createElement('div');
                     item.className = 'scan-item';
                     item.textContent = new Date().toLocaleTimeString() + ' - ' + code.data;
                     history.insertBefore(item, history.firstChild);
                     
-                    // Optional: Add visual/audio feedback
                     out.style.color = '#00b047';
-                    setTimeout(() => { out.style.color = '#008c34'; }, 500);
-                }
-            } else {
-                // No code detected, keep scanning message
-                if (out.textContent.indexOf('Camera active') === -1 && out.textContent.indexOf('Scanned') === -1) {
-                    out.textContent = "Camera active - Point at a QR code";
+                    setTimeout(() => { out.style.color = '#008c34'; }, 300);
                 }
             }
         }
