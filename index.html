@@ -255,6 +255,7 @@
             this.scanCooldown = 500; // 500ms cooldown for same chunk
             this.detectionAttempts = 0;
             this.successfulScans = 0;
+            this.metaInfo = null; // Parsed metadata from metadata QR frame
             
             this.setupEventListeners();
         }
@@ -521,6 +522,12 @@
         
         async processQRCode(qrCode) {
             try {
+                // First, check for metadata QR (UTF-8 text starting with QRX_META)
+                if (qrCode.data && typeof qrCode.data === 'string' && qrCode.data.startsWith('QRX_META|')) {
+                    this.handleMetaQR(qrCode.data);
+                    return;
+                }
+
                 // Get binary data from QR code
                 let bytes;
                 if (qrCode.binaryData) {
@@ -593,6 +600,54 @@
             } catch (error) {
                 console.error('Error processing QR code:', error);
                 this.addHistory(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        handleMetaQR(text) {
+            // Expected format: "QRX_META|chunks=<N>|fps=<fps>|version=1"
+            try {
+                const parts = text.split('|');
+                if (parts.length < 2 || parts[0] !== 'QRX_META') {
+                    return;
+                }
+
+                let chunks = null;
+                let fps = null;
+                let version = null;
+
+                for (let i = 1; i < parts.length; i++) {
+                    const [key, value] = parts[i].split('=');
+                    if (!key) continue;
+                    if (key === 'chunks') {
+                        chunks = parseInt(value, 10);
+                    } else if (key === 'fps') {
+                        fps = parseFloat(value);
+                    } else if (key === 'version') {
+                        version = value;
+                    }
+                }
+
+                if (!Number.isFinite(chunks) || chunks <= 0) {
+                    this.addHistory('Invalid metadata QR: missing or bad chunks value', 'error');
+                    return;
+                }
+
+                this.metaInfo = { chunks, fps, version };
+
+                // Use metadata to initialize expected total chunks before seeing first data QR
+                if (this.totalChunks === null) {
+                    this.totalChunks = chunks;
+                }
+
+                this.addHistory(
+                    `Metadata QR detected: expected ${chunks} chunks` + (fps ? ` at ${fps} fps` : ''),
+                    'success'
+                );
+                this.updateUI();
+                this.updateStatus('Metadata QR scanned. Waiting for data QR codes...', 'info');
+            } catch (e) {
+                console.error('Error parsing metadata QR:', e);
+                this.addHistory('Error parsing metadata QR', 'error');
             }
         }
         
